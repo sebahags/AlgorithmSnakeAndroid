@@ -28,7 +28,8 @@ public class GameView extends View {
     private List<Snake> snakes;
     private Eatable eatable;
     private boolean gameOver = false;
-    private boolean playerMode = false; // Change as needed
+    private boolean playerMode = false;
+    private int gameSpeedMillis;// Change as needed
     private Snake playerSnake;
 
     // A Handler for our game loop.
@@ -45,13 +46,24 @@ public class GameView extends View {
     };
 
     // Constructors
+    public GameView(Context context, boolean isPlayerMode, int gameSpeed) {
+        super(context);
+        this.playerMode = isPlayerMode;
+        this.gameSpeedMillis = gameSpeed;
+        initGame();
+    }
+
     public GameView(Context context, AttributeSet attrs) {
         super(context, attrs);
+        this.playerMode = false;
+        this.gameSpeedMillis = 55;
         initGame();
     }
 
     public GameView(Context context) {
         super(context);
+        this.playerMode = false;
+        this.gameSpeedMillis = 55;
         initGame();
     }
 
@@ -68,7 +80,7 @@ public class GameView extends View {
         // Add AI-controlled snakes
         snakes.add(new Snake(new Point(40, 55), Color.GREEN, Snake.PathAlgorithm.ASTAR, true));
         snakes.add(new Snake(new Point(20, 30), Color.RED, Snake.PathAlgorithm.BFS, true));
-        snakes.add(new Snake(new Point(75, 75), Color.BLUE, Snake.PathAlgorithm.DIJKSTRA, true));
+        snakes.add(new Snake(new Point(75, 75), Color.YELLOW, Snake.PathAlgorithm.DIJKSTRA, true));
 
         // Create and spawn the eatable
         eatable = new Eatable();
@@ -77,7 +89,7 @@ public class GameView extends View {
         eatable.spawn(bodies);
 
         // Start the game loop
-        handler.postDelayed(gameRunnable, GAME_SPEED);
+        handler.postDelayed(gameRunnable, gameSpeedMillis);
 
         // Enable key events if you plan to test on an emulator with a keyboard
         setFocusable(true);
@@ -288,5 +300,11 @@ public class GameView extends View {
             }
         }
         return super.onKeyDown(keyCode, event);
+    }
+    public void stopGameLoop(){
+        handler.removeCallbacks(gameRunnable);
+    }
+    public void cleanup(){
+        stopGameLoop();
     }
 }

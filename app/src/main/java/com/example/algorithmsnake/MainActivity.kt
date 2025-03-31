@@ -1,28 +1,30 @@
 package com.example.algorithmsnake
 
+import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.viewinterop.AndroidView
-import com.example.algorithmsnake.GameView
+import androidx.navigation.compose.rememberNavController
 import com.example.algorithmsnake.ui.theme.AlgorithmSnakeTheme
-import android.os.Bundle
+import com.example.algorithmsnake.AppNavigation  // Adjust package if needed
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Optionally call enableEdgeToEdge() and other initializations
         setContent {
             AlgorithmSnakeTheme {
-                // Use AndroidView to host our custom GameView
-                AndroidView(
+                Surface(
                     modifier = Modifier.fillMaxSize(),
-                    factory = { context ->
-                        // Instantiate GameView. If using XML attributes, use the constructor with AttributeSet or customize here.
-                        GameView(context)
-                    }
-                )
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    // Create and remember the NavController
+                    val navController = rememberNavController()
+                    // Launch the navigation graph
+                    AppNavigation(navController = navController)
+                }
             }
         }
     }
