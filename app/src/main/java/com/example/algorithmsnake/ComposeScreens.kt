@@ -42,10 +42,12 @@ fun AppNavigation(navController: NavHostController) {
             val isPlayerMode = backStackEntry.arguments?.getBoolean(AppDestinations.IS_PLAYER_MODE_ARG) ?: false
             val gameSpeed = backStackEntry.arguments?.getInt(AppDestinations.GAME_SPEED_ARG) ?: 55 // Default speed
 
+            // This call will now unambiguously resolve to the GameScreen defined
+            // in your separate GameScreen.kt file (the one from the Canvas)
             GameScreen(
+                navController = navController, // Pass navController first
                 isPlayerMode = isPlayerMode,
-                gameSpeed = gameSpeed,
-                navController = navController
+                gameSpeed = gameSpeed
             )
         }
     }
@@ -148,44 +150,5 @@ fun MainMenuScreen(navController: NavHostController) {
         }, modifier = Modifier.fillMaxWidth(0.6f)) {
             Text("Exit")
         }
-    }
-}
-
-// Composable to host the Java GameView
-@Composable
-fun GameScreen(
-    isPlayerMode: Boolean,
-    gameSpeed: Int,
-    navController: NavHostController // Pass controller for back navigation
-) {
-    // Hold a reference to the Java GameView instance if needed outside factory/onRelease
-    val gameViewRef = remember { mutableStateOf<GameView?>(null) }
-
-    // Use AndroidView to embed the custom *Java* GameView
-    AndroidView(
-        modifier = Modifier.fillMaxSize(),
-        factory = { context ->
-            // Create the *Java* GameView instance here, passing the parameters
-            GameView(context, isPlayerMode, gameSpeed).also {
-                gameViewRef.value = it // Store the reference
-            }
-        },
-        onRelease = { gameView ->
-            // Called when the composable leaves the composition. Good place for cleanup.
-            println("AndroidView onRelease called.")
-            gameView.cleanup() // Call the cleanup method in your Java GameView
-            gameViewRef.value = null
-        }
-        // update = { } // update lambda usually not needed if params don't change
-    )
-
-    // Optional: Add a Back Button handler
-    BackHandler {
-        println("Back button pressed on GameScreen")
-        // Optionally show a confirmation dialog?
-        // Stop the game loop in GameView before navigating back
-        gameViewRef.value?.stopGameLoop() // Access the stored reference
-        // Navigate back to the main menu screen
-        navController.popBackStack(AppDestinations.MAIN_MENU_ROUTE, inclusive = false)
     }
 }
