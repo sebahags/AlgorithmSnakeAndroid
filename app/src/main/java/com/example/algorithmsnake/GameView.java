@@ -7,56 +7,53 @@ import android.graphics.Point;
 import android.os.Handler;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.View;
-
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Random;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
+// class for gamelogic and rendering the game
 public class GameView extends View {
-    // Game constants
-    private static final int WIDTH = 100;
-    private static final int HEIGHT = 100;
-    private static final int UNIT_SIZE = 5;
-    private static final int GAME_SPEED = 25; // Milliseconds per update
+    private static final int GRID_WIDTH = 100;
+    private static final int GRID_HEIGHT = 100;
     private static final int MIN_POS = 1;
     private static final int MAX_POS = 98;
-
-    // Game objects
     private List<Snake> snakes;
     private Eatable eatable;
     private boolean gameOver = false;
     private boolean playerMode = false;
-    private int gameSpeedMillis;// Change as needed
+    private int gameSpeedMillis;
     private Snake playerSnake;
-
-    // A Handler for our game loop.
-    private Handler handler = new Handler();
-    private Runnable gameRunnable = new Runnable() {
+    private final Handler handler = new Handler(); // gameloop handler
+    private final Runnable gameRunnable = new Runnable() {
         @Override
         public void run() {
             if (!gameOver) {
                 updateGame();
-                invalidate();  // Triggers onDraw
-                handler.postDelayed(this, GAME_SPEED);
+                invalidate();
+                handler.postDelayed(this, gameSpeedMillis);
+            } else {
+                Log.d("GameLoop", "Game Over detected, stopping loop.");
             }
         }
     };
 
-    // Constructors
+    // constructors
     public GameView(Context context, boolean isPlayerMode, int gameSpeed) {
         super(context);
         this.playerMode = isPlayerMode;
-        this.gameSpeedMillis = gameSpeed;
+        this.gameSpeedMillis = Math.max(15, Math.min(gameSpeed, 100)); // check in case for gamespeed
+        Log.d("GameViewInit", "Constructor: PlayerMode=" + isPlayerMode + ", Speed=" + this.gameSpeedMillis);
         initGame();
     }
 
     public GameView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        this.playerMode = false;
-        this.gameSpeedMillis = 55;
+        this.playerMode = false; // Default to simulation
+        this.gameSpeedMillis = 55; // Default speed
+        Log.d("GameViewInit", "Constructor (AttributeSet): Using default PlayerMode=false, Speed=55");
         initGame();
     }
 
@@ -64,122 +61,200 @@ public class GameView extends View {
         super(context);
         this.playerMode = false;
         this.gameSpeedMillis = 55;
+        Log.d("GameViewInit", "Constructor (Context only): Using default PlayerMode=false, Speed=55");
         initGame();
     }
 
     private void initGame() {
-        // Initialize snake list and game objects
+        Log.d("GameViewInit", "initGame() started.");
+        gameOver = false;
         snakes = new ArrayList<>();
 
-        // Create the player snake if needed
         if (playerMode) {
-            playerSnake = new Snake(new Point(50, 50), Color.MAGENTA, null, false);
+            Point playerStartPos = new Point(GRID_WIDTH / 2, GRID_HEIGHT / 2);
+            playerSnake = new Snake(playerStartPos, Color.MAGENTA, null, false, false);
             snakes.add(playerSnake);
+            Log.d("GameViewInit", "Player snake created at (" + playerStartPos.x + "," + playerStartPos.y + ")");
         }
 
-        // Add AI-controlled snakes
-        snakes.add(new Snake(new Point(40, 55), Color.GREEN, Snake.PathAlgorithm.ASTAR, true));
-        snakes.add(new Snake(new Point(20, 30), Color.RED, Snake.PathAlgorithm.BFS, true));
-        snakes.add(new Snake(new Point(75, 75), Color.YELLOW, Snake.PathAlgorithm.DIJKSTRA, true));
+        // npc snakes
+        snakes.add(new Snake(new Point(GRID_WIDTH / 2 - 10, GRID_HEIGHT / 2 + 5), Color.GREEN, Snake.PathAlgorithm.ASTAR, true, true));
+        snakes.add(new Snake(new Point(GRID_WIDTH / 4, GRID_HEIGHT / 4), Color.RED, Snake.PathAlgorithm.BFS, true, true));
+        snakes.add(new Snake(new Point(GRID_WIDTH * 3 / 4, GRID_HEIGHT * 3 / 4), Color.YELLOW, Snake.PathAlgorithm.DIJKSTRA, true, true));
+        Log.d("GameViewInit", "AI snakes added. Total snakes: " + snakes.size());
 
-        // Create and spawn the eatable
+        // eatable spawning
         eatable = new Eatable();
-        // Use stream to collect snake bodies (each snake’s list of points)
-        List<List<Point>> bodies = snakes.stream().map(s -> s.body).collect(Collectors.toList());
-        eatable.spawn(bodies);
+        spawnEatableSafely();
 
-        // Start the game loop
+        // start gameloop
+        handler.removeCallbacks(gameRunnable);
         handler.postDelayed(gameRunnable, gameSpeedMillis);
-
-        // Enable key events if you plan to test on an emulator with a keyboard
+        Log.d("GameViewInit", "Game loop scheduled to start in " + gameSpeedMillis + "ms.");
         setFocusable(true);
         setFocusableInTouchMode(true);
+        Log.d("GameViewInit", "initGame() finished.");
     }
 
-    // Update game logic – similar to your desktop actionPerformed
+    private void spawnEatableSafely() {
+        if (eatable == null) return;
+        List<Point> allSnakePoints = snakes.stream()
+                .flatMap(s -> s.body.stream())
+                .collect(Collectors.toList());
+        eatable.spawn(allSnakePoints, MIN_POS, MAX_POS); // Pass bounds to Eatable.spawn
+        Log.d("GameViewLogic", "Eatable spawned at: (" + eatable.position.x + "," + eatable.position.y + ")");
+    }
+
+
+    // game update logic
     private void updateGame() {
+        if (gameOver || snakes == null || eatable == null) return;
         List<Snake> snakesToRemove = new ArrayList<>();
+        List<Snake> currentSnakes = new ArrayList<>(snakes);
+        List<List<Point>> allBodies = currentSnakes.stream()
+                .filter(Objects::nonNull)
+                .filter(s -> s.body != null)
+                .map(s -> s.body)
+                .collect(Collectors.toList());
 
-        for (Snake snake : new ArrayList<>(snakes)) {
-            List<List<Point>> allBodies = snakes.stream().map(s -> s.body).collect(Collectors.toList());
-
-            // For the player snake, you would later handle input via onKeyDown or touch events.
-            if (playerMode && snake == playerSnake) {
+        for (Snake snake : currentSnakes) {
+            if (snake == null || snakesToRemove.contains(snake)) continue;
+            // snake movement
+            if (snake.isAi) {
+                moveAiSnake(snake, allBodies, snakesToRemove);
+            } else if (playerMode && snake == playerSnake) {
                 movePlayerSnake(snakesToRemove);
-                continue;
             }
+            // eating of eatable
+            if (!snakesToRemove.contains(snake) && eatable.position != null && snake.getHead().equals(eatable.position)) {
+                snake.eatEatable();
+                Log.d("GameViewLogic", "Snake " + snake.color + " ate the eatable. Score: " + snake.score);
+                spawnEatableSafely();
+            }
+        }
 
-            // For AI snakes, use your pathfinding logic (using the Pathfinder methods)
-            List<Point> path;
+        // remove colliding snakes
+        if (!snakesToRemove.isEmpty()) {
+            Log.d("GameViewLogic", "Removing " + snakesToRemove.size() + " snakes.");
+            snakes.removeAll(snakesToRemove);
+        }
+
+        // check if game over
+        if (playerMode && playerSnake != null && snakesToRemove.contains(playerSnake)) {
+            Log.i("GameViewLogic", "Game Over: Player snake collided.");
+            gameOver = true;
+            playerSnake = null;
+        }
+        else if (!playerMode && snakes.size() <= 1) {
+            Log.i("GameViewLogic", "Game Over: Simulation ended with " + snakes.size() + " snakes remaining.");
+            gameOver = true;
+        }
+
+        if (gameOver) {
+            stopGameLoop();
+            invalidate();
+        }
+    }
+
+    private void movePlayerSnake(List<Snake> snakesToRemove) {
+        if (playerSnake == null || gameOver) return;
+
+        // next pos for the head
+        Point newHead = new Point(playerSnake.getHead().x + playerSnake.direction.x,
+                playerSnake.getHead().y + playerSnake.direction.y);
+
+        // collision check
+        if (willCollide(playerSnake, newHead)) {
+            Log.d("PlayerMove", "Player collision detected at (" + newHead.x + "," + newHead.y + ")");
+            snakesToRemove.add(playerSnake);
+        } else {
+            playerSnake.move();
+        }
+    }
+
+    // npc snake movmeent
+    private void moveAiSnake(Snake snake, List<List<Point>> allBodies, List<Snake> snakesToRemove) {
+        if (snake == null || !snake.isAi || gameOver) return;
+        List<Point> path = null;
+        boolean moved = false;
+
+        try {
             if (snake.algorithm == Snake.PathAlgorithm.ASTAR) {
                 path = Pathfinder.aStar(snake, eatable, allBodies, snake.optimal, MIN_POS, MAX_POS);
             } else if (snake.algorithm == Snake.PathAlgorithm.BFS) {
                 path = Pathfinder.bfs(snake, eatable, allBodies, snake.optimal, MIN_POS, MAX_POS);
             } else if (snake.algorithm == Snake.PathAlgorithm.DIJKSTRA) {
                 path = Pathfinder.dijkstra(snake, eatable, allBodies, snake.optimal, MIN_POS, MAX_POS);
+            }
+        } catch (Exception e) {
+            Log.e("AIMove", "Pathfinding error for snake " + snake.color + ": " + e.getMessage(), e);
+            path = null;
+        }
+
+        if (path != null && !path.isEmpty()) {
+            Point nextPosition = path.get(0);
+            // check head and collision
+            if (!nextPosition.equals(snake.getHead()) && !willCollide(snake, nextPosition)) {
+                snake.setDirectionTowards(nextPosition);
+                snake.move();
+                moved = true;
             } else {
-                path = new ArrayList<>();
-            }
-
-            boolean moved = false;
-            if (!path.isEmpty()) {
-                Point nextPosition = path.get(0);
-                if (!willCollide(snake, nextPosition)) {
-                    snake.setDirection(nextPosition);
-                    snake.move();
-                    moved = true;
-                }
-            }
-            if (!moved) {
-                Point newHead = new Point(snake.getHead().x + snake.direction.x, snake.getHead().y + snake.direction.y);
-                if (!willCollide(snake, newHead)) {
-                    snake.move();
-                    moved = true;
-                } else {
-                    List<Point> possibleDirections = getPossibleDirections(snake.direction);
-                    for (Point dir : possibleDirections) {
-                        Point testHead = new Point(snake.getHead().x + dir.x, snake.getHead().y + dir.y);
-                        if (!willCollide(snake, testHead)) {
-                            snake.setDirection(testHead);
-                            snake.move();
-                            moved = true;
-                            break;
-                        }
-                    }
-                    if (!moved) {
-                        snakesToRemove.add(snake);
-                    }
-                }
-            }
-
-            if (snake.getHead().equals(eatable.position)) {
-                snake.eatEatable();
-                List<List<Point>> bodies = snakes.stream().map(s -> s.body).collect(Collectors.toList());
-                eatable.spawn(bodies);
+                Log.w("AIMove", "AI Snake " + snake.color + " path step invalid/collides: (" + nextPosition.x + "," + nextPosition.y + ")");
             }
         }
 
-        // Remove snakes marked for removal
-        snakes.removeAll(snakesToRemove);
+        // if path fails check collision on current direction
+        if (!moved) {
+            if (snake.direction.x != 0 || snake.direction.y != 0) {
+                Point currentDirHead = new Point(snake.getHead().x + snake.direction.x, snake.getHead().y + snake.direction.y);
+                if (!willCollide(snake, currentDirHead)) {
+                    snake.move();
+                    moved = true;
+                }
+            }
+        }
 
-        if (snakes.size() <= 1) {
-            gameOver = true;
-            // Optionally stop the handler here if needed.
+        // if path fails and current dir collides, try other 2 options
+        if (!moved) {
+            List<Point> possibleDirs = getPerpendicularDirections(snake.direction);
+            Collections.shuffle(possibleDirs);
+            for (Point dir : possibleDirs) {
+                Point testHead = new Point(snake.getHead().x + dir.x, snake.getHead().y + dir.y);
+                if (!willCollide(snake, testHead)) {
+                    snake.direction = dir;
+                    snake.move();
+                    moved = true;
+                    break;
+                }
+            }
+        }
+
+        // if fails until here, kill snake
+        if (!moved) {
+            snakesToRemove.add(snake);
+            Log.w("AIMove", "AI Snake " + snake.color + " could not find any valid move and was removed.");
         }
     }
 
+    // collision check
     private boolean willCollide(Snake currentSnake, Point nextPosition) {
-        // Check boundaries: only allow positions from MIN_POS to MAX_POS inclusive
+        // game area boundaries
         if (nextPosition.x < MIN_POS || nextPosition.x > MAX_POS ||
                 nextPosition.y < MIN_POS || nextPosition.y > MAX_POS) {
             return true;
         }
-        // Check collision with all snakes
+
+        // other snakes
         for (Snake snake : snakes) {
             for (int i = 0; i < snake.body.size(); i++) {
-                Point p = snake.body.get(i);
-                if (p.equals(nextPosition)) {
-                    // Allow the snake to move into its own tail
+                Point bodyPart = snake.body.get(i);
+
+                if (bodyPart.equals(nextPosition)) {
+                    if (snake == currentSnake && i == 0) {
+                        continue; // the head will move
+                    }
+
+                    // allow to "collide" with tail since it will move
                     if (snake == currentSnake && i == snake.body.size() - 1) {
                         continue;
                     }
@@ -190,121 +265,162 @@ public class GameView extends View {
         return false;
     }
 
-    private List<Point> getPossibleDirections(Point currentDirection) {
+    private List<Point> getPerpendicularDirections(Point currentDirection) {
         List<Point> directions = new ArrayList<>();
-        // Add current direction
-        directions.add(new Point(currentDirection.x, currentDirection.y));
-        // Add perpendicular directions
-        if (currentDirection.x != 0) { // Horizontal movement
+        if (currentDirection == null) return directions;
+        if (currentDirection.x != 0) {
             directions.add(new Point(0, 1));
             directions.add(new Point(0, -1));
-        } else if (currentDirection.y != 0) { // Vertical movement
+        } else if (currentDirection.y != 0) {
             directions.add(new Point(1, 0));
             directions.add(new Point(-1, 0));
+        } else {
+            directions.add(new Point(1, 0));
+            directions.add(new Point(-1, 0));
+            directions.add(new Point(0, 1));
+            directions.add(new Point(0, -1));
         }
         return directions;
     }
 
-    // A simple player move method – you could later adjust to handle touch or key events
-    private void movePlayerSnake(List<Snake> snakesToRemove) {
-        if (playerSnake == null) return;
-        Point newHead = new Point(playerSnake.getHead().x + playerSnake.direction.x,
-                playerSnake.getHead().y + playerSnake.direction.y);
-        if (willCollide(playerSnake, newHead)) {
-            snakesToRemove.add(playerSnake);
-            playerSnake = null;
-        } else {
-            playerSnake.move();
-            if (playerSnake.getHead().equals(eatable.position)) {
-                playerSnake.eatEatable();
-                List<List<Point>> bodies = snakes.stream().map(s -> s.body).collect(Collectors.toList());
-                eatable.spawn(bodies);
-            }
-        }
-    }
 
+    // rendering the game
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        // Get the actual view size
-        int viewWidth = getWidth();
-        int viewHeight = getHeight();
+        if (canvas == null) return;
+        try {
+            int viewWidth = getWidth(); int viewHeight = getHeight();
+            if (viewWidth <= 0 || viewHeight <= 0) return;
+            int maxSquareSize = Math.min(viewWidth, viewHeight);
+            int unitSize = Math.max(1, maxSquareSize / GRID_WIDTH);
+            int gameAreaWidth = unitSize * GRID_WIDTH;
+            int gameAreaHeight = unitSize * GRID_HEIGHT;
+            int offsetX = (viewWidth - gameAreaWidth) / 2;
+            int offsetY = (viewHeight - gameAreaHeight) / 2;
 
-        // Determine the maximum square that fits in the view
-        int squareSize = Math.min(viewWidth, viewHeight);
-        // Compute the new unit size: the grid is 100 units wide.
-        int newUnit = squareSize / WIDTH;  // WIDTH is 100
-        // Compute offsets to center the grid
-        int offsetX = (viewWidth - (newUnit * WIDTH)) / 2;
-        int offsetY = (viewHeight - (newUnit * HEIGHT)) / 2;
+            // game area background
+            Paint gameAreaPaint = new Paint();
+            gameAreaPaint.setColor(Color.BLACK);
+            canvas.drawRect(offsetX, offsetY, offsetX + gameAreaWidth, offsetY + gameAreaHeight, gameAreaPaint);
 
-        // Debugging Logs
-        Log.d("GameViewDebug", "View Width: " + viewWidth);
-        Log.d("GameViewDebug", "View Height: " + viewHeight);
-        Log.d("GameViewDebug", "Calculated UNIT_SIZE (newUnit): " + newUnit);
-        Log.d("GameViewDebug", "Game Area Width: " + (newUnit * WIDTH));
-        Log.d("GameViewDebug", "Game Area Height: " + (newUnit * HEIGHT));
-        Log.d("GameViewDebug", "OffsetX: " + offsetX);
-        Log.d("GameViewDebug", "OffsetY: " + offsetY);
+            // game area boarders
+            Paint borderPaint = new Paint();
+            borderPaint.setColor(Color.WHITE);
+            borderPaint.setStyle(Paint.Style.FILL);
+            canvas.drawRect(offsetX, offsetY, offsetX + gameAreaWidth, offsetY + unitSize, borderPaint);
+            canvas.drawRect(offsetX, offsetY + gameAreaHeight - unitSize, offsetX + gameAreaWidth, offsetY + gameAreaHeight, borderPaint);
+            canvas.drawRect(offsetX, offsetY, offsetX + unitSize, offsetY + gameAreaHeight, borderPaint);
+            canvas.drawRect(offsetX + gameAreaWidth - unitSize, offsetY, offsetX + gameAreaWidth, offsetY + gameAreaHeight, borderPaint);
 
-        // Draw background for the whole view (or just the game area if you prefer)
-        canvas.drawColor(Color.BLACK);
+            // eatable
+            if (eatable != null && eatable.position != null) {
+                eatable.paint(canvas, unitSize, offsetX, offsetY);
+            }
 
-        Paint borderPaint = new Paint();
-        borderPaint.setColor(Color.WHITE);
+            // snakes
+            List<Snake> localSnakes = this.snakes;
+            if (localSnakes != null) {
+                for (Snake snake : new ArrayList<>(localSnakes)) {
+                    if (snake != null) {
+                        snake.paint(canvas, unitSize, offsetX, offsetY);
+                    }
+                }
+            }
 
-        // Draw borders around the grid (top, bottom, left, right)
-        // Top border:
-        canvas.drawRect(offsetX, offsetY, offsetX + (WIDTH * newUnit), offsetY + newUnit, borderPaint);
-        // Bottom border:
-        canvas.drawRect(offsetX, offsetY + (HEIGHT * newUnit) - newUnit, offsetX + (WIDTH * newUnit), offsetY + (HEIGHT * newUnit), borderPaint);
-        // Left border:
-        canvas.drawRect(offsetX, offsetY, offsetX + newUnit, offsetY + (HEIGHT * newUnit), borderPaint);
-        // Right border:
-        canvas.drawRect(offsetX + (WIDTH * newUnit) - newUnit, offsetY, offsetX + (WIDTH * newUnit), offsetY + (HEIGHT * newUnit), borderPaint);
-
-        // Draw the eatable
-        eatable.paint(canvas, newUnit, offsetX, offsetY);
-
-        // Draw all snakes
-        for (Snake snake : snakes) {
-            snake.paint(canvas, newUnit, offsetX, offsetY);
-        }
-
-        // Draw Game Over text if needed
-        if (gameOver) {
-            Paint textPaint = new Paint();
-            textPaint.setColor(Color.WHITE);
-            textPaint.setTextSize(newUnit * 2); // Adjust text size as needed
-            String text = "Game Over!";
-            float textWidth = textPaint.measureText(text);
-            float x = offsetX + ((WIDTH * newUnit) - textWidth) / 2;
-            float y = offsetY + (HEIGHT * newUnit) / 2;
-            canvas.drawText(text, x, y, textPaint);
+            // game over text
+            if (gameOver) {
+                Paint textPaint = new Paint();
+                textPaint.setColor(Color.RED);
+                textPaint.setTextSize(Math.max(20f, unitSize * 4f)); // Adjust multiplier as needed
+                textPaint.setTextAlign(Paint.Align.CENTER);
+                textPaint.setAntiAlias(true);
+                String text = "Game Over!";
+                float x = offsetX + gameAreaWidth / 2.0f;
+                float y = offsetY + gameAreaHeight / 2.0f - (textPaint.descent() + textPaint.ascent()) / 2;
+                Paint bgPaint = new Paint();
+                bgPaint.setColor(Color.argb(180, 0, 0, 0));
+                float textWidth = textPaint.measureText(text);
+                float bgPadding = unitSize * 2f;
+                canvas.drawRect(x - textWidth / 2 - bgPadding, y + textPaint.ascent() - bgPadding,
+                        x + textWidth / 2 + bgPadding, y + textPaint.descent() + bgPadding, bgPaint);
+                canvas.drawText(text, x, y, textPaint);
+            }
+        } catch (Exception e) {
+            Log.e("onDraw", "Error during drawing: " + e.getMessage(), e);
         }
     }
 
-    // Optional: Override onKeyDown() or onTouchEvent() to handle user input.
-    // For example, using onKeyDown for arrow key simulation (if using a hardware keyboard/emulator)
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (playerSnake != null) {
-            Point currentDir = playerSnake.direction;
-            // For simplicity, use left/right to rotate the snake’s direction
-            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                playerSnake.direction = new Point(-currentDir.y, currentDir.x);
-                return true;
-            } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                playerSnake.direction = new Point(currentDir.y, -currentDir.x);
-                return true;
+    public void setPlayerDirection(Point requestedDirection) {
+        if (playerSnake == null || !playerMode || gameOver || requestedDirection == null) {
+            return;
+        }
+
+        Point currentDir = playerSnake.direction;
+
+        if (currentDir == null) {
+            Log.w("SetPlayerDir", "Current direction is null, attempting to set directly.");
+            playerSnake.direction = requestedDirection;
+            return;
+        }
+
+        // check for current dir
+        if (currentDir.equals(requestedDirection)) {
+            Log.d("SetPlayerDir", "Ignoring direction change: Same direction requested.");
+            return;
+        }
+
+        // opposite direction not allowed
+        if (requestedDirection.x == -currentDir.x && requestedDirection.y == -currentDir.y) {
+            if (playerSnake.body != null && playerSnake.body.size() > 1) {
+                Log.d("SetPlayerDir", "Ignoring direction change: Opposite direction requested.");
+                return;
             }
         }
-        return super.onKeyDown(keyCode, event);
+
+        playerSnake.direction = requestedDirection;
+        Log.d("SetPlayerDir", "Set player direction to: (" + requestedDirection.x + "," + requestedDirection.y + ")");
     }
-    public void stopGameLoop(){
-        handler.removeCallbacks(gameRunnable);
+
+    public void stopGameLoop() {
+        if (handler != null) {
+            handler.removeCallbacks(gameRunnable);
+            Log.d("GameViewLifecycle", "Game loop callbacks removed.");
+        }
     }
-    public void cleanup(){
+
+    public void cleanup() {
+        Log.d("GameViewLifecycle", "cleanup() called.");
         stopGameLoop();
+        snakes = null;
+        eatable = null;
+        playerSnake = null;
+    }
+
+    public void endGameAndCleanup() {
+        Log.d("GameViewLifecycle", "endGameAndCleanup called.");
+        if (!gameOver) {
+            this.gameOver = true;
+            Log.d("GameViewLifecycle", "Setting gameOver=true.");
+            invalidate();
+        }
+        cleanup();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        Log.d("GameViewLifecycle", "onDetachedFromWindow called. Performing cleanup.");
+        cleanup();
+    }
+
+    @Override
+    protected void onWindowVisibilityChanged(int visibility) {
+        super.onWindowVisibilityChanged(visibility);
+        if (visibility == View.GONE || visibility == View.INVISIBLE) {
+            Log.d("GameViewLifecycle", "Window became hidden/invisible.");
+        } else if (visibility == View.VISIBLE) {
+            Log.d("GameViewLifecycle", "Window became visible.");
+        }
     }
 }
