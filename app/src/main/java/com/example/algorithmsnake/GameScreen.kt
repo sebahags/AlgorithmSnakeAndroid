@@ -1,12 +1,11 @@
 package com.example.algorithmsnake
 
-// Android & Compose imports
+
 import android.content.Context
 import android.graphics.Point
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background // Keep background import for root layout
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-// import androidx.compose.foundation.shape.CircleShape // No longer needed for explicit background
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,21 +15,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.zIndex // Import zIndex modifier
-// Correct Compose ConstraintLayout Imports
+import androidx.compose.ui.zIndex
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import androidx.navigation.NavHostController
-
-// IMPORTANT: Make sure you import your project's actual generated R class
-import com.example.algorithmsnake.R // Adjust the package name if necessary
-
-// IMPORTANT: Ensure your AppDestinations object/class is accessible from here
-// Example: import com.example.algorithmsnake.navigation.AppDestinations
-
-// IMPORTANT: Ensure your GameView class is accessible from here
-// Example: import com.example.algorithmsnake.game.GameView
-
+import com.example.algorithmsnake.R
 
 @Composable
 fun GameScreen(
@@ -40,23 +29,21 @@ fun GameScreen(
 ) {
     val context = LocalContext.current
     var gameViewInstance by remember { mutableStateOf<GameView?>(null) }
-
     val dirUp = remember { Point(0, -1) }
     val dirDown = remember { Point(0, 1) }
     val dirLeft = remember { Point(-1, 0) }
     val dirRight = remember { Point(1, 0) }
 
-    // Use ConstraintLayout as the root container
+    // rootcontainer
     ConstraintLayout(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .statusBarsPadding() // Keep padding for the status bar
+            .statusBarsPadding()
     ) {
-
         val (gameViewRef, controlsRef, exitButtonRef) = createRefs()
 
-        // --- GameView (AndroidView) ---
+        // GameView
         AndroidView(
             factory = { ctx ->
                 GameView(ctx, isPlayerMode, gameSpeed).also {
@@ -82,11 +69,11 @@ fun GameScreen(
                 gameViewInstance = null
             },
             update = { /* Optional */ }
-        ) // End AndroidView
+        )
 
 
-        // --- Exit Button (Now using Button) ---
-        Button( // Changed from IconButton to Button
+        // exit button
+        Button(
             onClick = {
                 gameViewInstance?.endGameAndCleanup()
                 gameViewInstance = null
@@ -96,20 +83,16 @@ fun GameScreen(
                 }
             },
             modifier = Modifier
-                .zIndex(1f) // Keep zIndex to ensure it's drawn on top
+                .zIndex(1f) // draw on top
                 .constrainAs(exitButtonRef) {
                     top.linkTo(parent.top, margin = 16.dp)
                     end.linkTo(parent.end, margin = 16.dp)
-                    // Keep the size constraints for the button's touch area
+                    // touch area
                     width = Dimension.value(48.dp)
                     height = Dimension.value(48.dp)
                 },
-            // Remove default internal padding to make icon fill better
             contentPadding = PaddingValues(0.dp),
-            // Button will now automatically use theme's primary color and default shape
-            // No need for explicit .background() modifier anymore
         ) {
-            // Image content remains the same
             Image(
                 painter = painterResource(id = R.drawable.cross_small),
                 contentDescription = "Exit Game",
@@ -118,7 +101,7 @@ fun GameScreen(
         }
 
 
-        // --- Control Buttons Area ---
+        // arrow buttons
         if (isPlayerMode) {
             Column(
                 modifier = Modifier
@@ -133,12 +116,10 @@ fun GameScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // --- D-pad Buttons --- (Remain as Button)
                 Row(horizontalArrangement = Arrangement.Center) {
                     Button(
                         onClick = { gameViewInstance?.setPlayerDirection(dirUp) },
                         modifier = Modifier.size(64.dp)
-                        // These buttons already use the theme defaults
                     ) {
                         Image(
                             painterResource(id = R.drawable.arrow_up),
@@ -147,28 +128,27 @@ fun GameScreen(
                         )
                     }
                 }
-                // ... (Rest of D-pad buttons omitted for brevity) ...
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
                     Button(
-                        onClick = { gameViewInstance?.setPlayerDirection(dirLeft) }, // Ensure method exists
+                        onClick = { gameViewInstance?.setPlayerDirection(dirLeft) },
                         modifier = Modifier.size(64.dp)
                     ) {
                         Image(
-                            painterResource(id = R.drawable.arrow_left), // Uses your actual R class
+                            painterResource(id = R.drawable.arrow_left),
                             contentDescription = "Left",
                             Modifier.size(ButtonDefaults.IconSize * 1.5f)
                         )
                     }
                     Spacer(Modifier.width(64.dp))
                     Button(
-                        onClick = { gameViewInstance?.setPlayerDirection(dirRight) }, // Ensure method exists
+                        onClick = { gameViewInstance?.setPlayerDirection(dirRight) },
                         modifier = Modifier.size(64.dp)
                     ) {
                         Image(
-                            painterResource(id = R.drawable.arrow_right), // Uses your actual R class
+                            painterResource(id = R.drawable.arrow_right),
                             contentDescription = "Right",
                             Modifier.size(ButtonDefaults.IconSize * 1.5f)
                         )
@@ -176,18 +156,17 @@ fun GameScreen(
                 }
                 Row(horizontalArrangement = Arrangement.Center) {
                     Button(
-                        onClick = { gameViewInstance?.setPlayerDirection(dirDown) }, // Ensure method exists
+                        onClick = { gameViewInstance?.setPlayerDirection(dirDown) },
                         modifier = Modifier.size(64.dp)
                     ) {
                         Image(
-                            painterResource(id = R.drawable.arrow_down), // Uses your actual R class
+                            painterResource(id = R.drawable.arrow_down),
                             contentDescription = "Down",
                             Modifier.size(ButtonDefaults.IconSize * 1.5f)
                         )
                     }
                 }
-            } // End Controls Column
-        } // End if (isPlayerMode)
-
-    } // End ConstraintLayout
-} // End GameScreen Composable
+            }
+        }
+    }
+}

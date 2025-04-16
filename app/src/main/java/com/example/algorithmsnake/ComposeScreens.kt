@@ -18,34 +18,29 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.algorithmsnake.ui.theme.AlgorithmSnakeTheme
 
-// This Composable function sets up the navigation graph
+//navigation graph
 @Composable
 fun AppNavigation(navController: NavHostController) {
     NavHost(
         navController = navController,
-        startDestination = AppDestinations.MAIN_MENU_ROUTE // Use constant from Java class
+        startDestination = AppDestinations.MAIN_MENU_ROUTE
     ) {
-        // Main Menu Screen Composable Definition
+        // Main Menu composable
         composable(route = AppDestinations.MAIN_MENU_ROUTE) {
             MainMenuScreen(navController = navController)
         }
-
-        // Game Screen Composable Definition
+        // Game Screen composable
         composable(
-            route = AppDestinations.GAME_SCREEN_ROUTE_PATTERN, // Use pattern from Java class
+            route = AppDestinations.GAME_SCREEN_ROUTE_PATTERN,
             arguments = listOf(
                 navArgument(AppDestinations.IS_PLAYER_MODE_ARG) { type = NavType.BoolType },
                 navArgument(AppDestinations.GAME_SPEED_ARG) { type = NavType.IntType }
             )
         ) { backStackEntry ->
-            // Retrieve arguments safely
             val isPlayerMode = backStackEntry.arguments?.getBoolean(AppDestinations.IS_PLAYER_MODE_ARG) ?: false
             val gameSpeed = backStackEntry.arguments?.getInt(AppDestinations.GAME_SPEED_ARG) ?: 55 // Default speed
-
-            // This call will now unambiguously resolve to the GameScreen defined
-            // in your separate GameScreen.kt file (the one from the Canvas)
             GameScreen(
-                navController = navController, // Pass navController first
+                navController = navController,
                 isPlayerMode = isPlayerMode,
                 gameSpeed = gameSpeed
             )
@@ -54,28 +49,27 @@ fun AppNavigation(navController: NavHostController) {
 }
 
 
-// Composable for the Main Menu UI
-@OptIn(ExperimentalMaterial3Api::class) // Needed for ExposedDropdownMenuBox
+// main menu composable
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainMenuScreen(navController: NavHostController) {
     val context = LocalContext.current
     val difficulties = listOf("Slugg Fest", "Medium", "Deranged")
-    var selectedDifficulty by remember { mutableStateOf(difficulties[1]) } // Default to Medium
+    var selectedDifficulty by remember { mutableStateOf(difficulties[1]) }
     var isDropdownExpanded by remember { mutableStateOf(false) }
 
-    // Helper function (can be inside or outside the composable)
+    // get gamespeed in milliseconds
     fun getGameSpeedFromSelection(selection: String): Int {
         return when (selection) {
             "Slugg Fest" -> 90
             "Deranged" -> 25
-            else -> 55 // Medium or default
+            else -> 55
         }
     }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black) // Match Java version background
+            .background(Color.Black)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -83,7 +77,6 @@ fun MainMenuScreen(navController: NavHostController) {
         Text("Select Difficulty:", color = Color.White, style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Difficulty Dropdown
         ExposedDropdownMenuBox(
             expanded = isDropdownExpanded,
             onExpandedChange = { isDropdownExpanded = !isDropdownExpanded }
@@ -122,10 +115,9 @@ fun MainMenuScreen(navController: NavHostController) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Buttons
+        //menubuttons
         Button(onClick = {
             val gameSpeed = getGameSpeedFromSelection(selectedDifficulty)
-            // Navigate using the route builder from the Java class
             navController.navigate(AppDestinations.buildGameRoute(false, gameSpeed))
         }, modifier = Modifier.fillMaxWidth(0.6f)) {
             Text("Simulation")
@@ -135,7 +127,6 @@ fun MainMenuScreen(navController: NavHostController) {
 
         Button(onClick = {
             val gameSpeed = getGameSpeedFromSelection(selectedDifficulty)
-            // Navigate using the route builder from the Java class
             navController.navigate(AppDestinations.buildGameRoute(true, gameSpeed))
         }, modifier = Modifier.fillMaxWidth(0.6f)) {
             Text("Play")
@@ -144,7 +135,6 @@ fun MainMenuScreen(navController: NavHostController) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(onClick = {
-            // Get the activity context and call finish() on it (Java Activity)
             val activity = context as? Activity
             activity?.finish()
         }, modifier = Modifier.fillMaxWidth(0.6f)) {
