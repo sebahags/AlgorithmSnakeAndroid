@@ -5,6 +5,7 @@ import android.graphics.Paint;
 import android.graphics.Point;
 import java.util.ArrayList;
 import java.util.List;
+import android.util.Log;
 
 //class for snake object
 public class Snake {
@@ -16,6 +17,8 @@ public class Snake {
     public boolean optimal;
     public int score = 0;
     public boolean isAi;
+    private List<Point> currentPath;
+    private Point currentTarget;
 
     public Snake(Point start, int color, PathAlgorithm algorithm, boolean optimal, boolean isAi) {
         this.color = color;
@@ -24,10 +27,12 @@ public class Snake {
         this.isAi = isAi;
         this.body = new ArrayList<>();
         this.direction = new Point(1, 0);
-
+        this.body.add(start);
         for (int i = 0; i < 3; i++) {
             body.add(new Point(start.x - i, start.y));
         }
+        this.currentPath = null;
+        this.currentTarget = null;
     }
 
     public Point getHead() {
@@ -55,8 +60,12 @@ public class Snake {
     }
 
     public void eatEatable() {
-        grow();
         score++;
+        grow();
+        if (this.isAi) {
+            this.currentPath = null;
+            this.currentTarget = null;
+        }
     }
 
     public void grow() {
@@ -71,10 +80,40 @@ public class Snake {
         paint.setColor(this.color);
         paint.setStyle(Paint.Style.FILL);
 
-        for (Point p : body) {
-            int left = offsetX + p.x * unitSize;
-            int top = offsetY + p.y * unitSize;
-            canvas.drawRect(left, top, left + unitSize, top + unitSize, paint);
+        Paint headPaint = new Paint();
+        headPaint.setColor(Color.argb(255,
+                Math.min(255, Color.red(this.color) + 125),
+                Math.min(255, Color.green(this.color) + 125),
+                Math.min(255, Color.blue(this.color) + 125)));
+        headPaint.setStyle(Paint.Style.FILL);
+
+        for (int i = 0; i < body.size(); i++) {
+            Point p = body.get(i);
+            if (p == null) continue;
+
+            float left = offsetX + p.x * unitSize;
+            float top = offsetY + p.y * unitSize;
+            float right = left + unitSize;
+            float bottom = top + unitSize;
+
+            if (i == 0) {
+                canvas.drawRect(left, top, right, bottom, headPaint);
+            } else {
+                canvas.drawRect(left, top, right, bottom, paint);
+            }
         }
     }
+    public List<Point> getCurrentPath() {
+        return currentPath;
+    }
+
+    public void setCurrentPath(List<Point> path, Point target) {
+        this.currentPath = (path == null) ? null : new ArrayList<>(path);
+        this.currentTarget = target;
+    }
+
+    public Point getCurrentTarget() {
+        return currentTarget;
+    }
+
 }

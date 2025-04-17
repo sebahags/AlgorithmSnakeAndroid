@@ -16,10 +16,10 @@ import java.util.stream.Collectors;
 
 // class for gamelogic and rendering the game
 public class GameView extends View {
-    private static final int GRID_WIDTH = 100;
-    private static final int GRID_HEIGHT = 100;
+    private static final int GRID_WIDTH = 75;
+    private static final int GRID_HEIGHT = 75;
     private static final int MIN_POS = 1;
-    private static final int MAX_POS = 98;
+    private static final int MAX_POS = 73;
     private List<Snake> snakes;
     private Eatable eatable;
     private boolean gameOver = false;
@@ -69,7 +69,7 @@ public class GameView extends View {
         Log.d("GameViewInit", "initGame() started.");
         gameOver = false;
         snakes = new ArrayList<>();
-
+        setKeepScreenOn(true);
         if (playerMode) {
             Point playerStartPos = new Point(GRID_WIDTH / 2, GRID_HEIGHT / 2);
             playerSnake = new Snake(playerStartPos, Color.MAGENTA, null, false, false);
@@ -174,65 +174,118 @@ public class GameView extends View {
 
     // npc snake movmeent
     private void moveAiSnake(Snake snake, List<List<Point>> allBodies, List<Snake> snakesToRemove) {
-        if (snake == null || !snake.isAi || gameOver) return;
+        if (snake == null || !snake.isAi || gameOver || eatable == null || eatable.position == null) return;
         List<Point> path = null;
         boolean moved = false;
+        Point nextStep = null;
+        List<Point> currentPath = snake.getCurrentPath();
+        Point currentTarget = snake.getCurrentTarget();
 
-        try {
-            if (snake.algorithm == Snake.PathAlgorithm.ASTAR) {
-                path = Pathfinder.aStar(snake, eatable, allBodies, snake.optimal, MIN_POS, MAX_POS);
-            } else if (snake.algorithm == Snake.PathAlgorithm.BFS) {
-                path = Pathfinder.bfs(snake, eatable, allBodies, snake.optimal, MIN_POS, MAX_POS);
-            } else if (snake.algorithm == Snake.PathAlgorithm.DIJKSTRA) {
-                path = Pathfinder.dijkstra(snake, eatable, allBodies, snake.optimal, MIN_POS, MAX_POS);
-            }
-        } catch (Exception e) {
-            Log.e("AIMove", "Pathfinding error for snake " + snake.color + ": " + e.getMessage(), e);
-            path = null;
+        if (currentTarget == null || !currentTarget.equals(eatable.position)) {
+            Log.d("AIMove", "Snake " + snake.color + ": Target changed or null. Clearing path.");
+            currentPath = null;
+            snake.setCurrentPath(null, null);
         }
 
-        if (path != null && !path.isEmpty()) {
-            Point nextPosition = path.get(0);
-            // check head and collision
-            if (!nextPosition.equals(snake.getHead()) && !willCollide(snake, nextPosition)) {
-                snake.setDirectionTowards(nextPosition);
+        if (currentPath != null && !currentPath.isEmpty()) {
+            Point potentialNextStep = currentPath.get(0); // next step in the path
+            if (willCollide(snake, potentialNextStep)) {
+                Log.w("AIMove", "Snake " + snake.color + ": Next step on stored path (" + potentialNextStep.x + "," + potentialNextStep.y + ") is blocked. Clearing path.");
+                snake.setCurrentPath(null, null);
+                currentPath = null;
+            } else {
+                nextStep = potentialNextStep;
+                Log.d("AIMove", "Snake " + snake.color + ": Following stored path. Next step: (" + nextStep.x + "," + nextStep.y + ")");
+            }
+        }
+
+        if (nextStep == null) {
+            Log.d("AIMove", "Snake " + snake.color + ": No valid stored path. Calculating new path to ("+ eatable.position.x + "," + eatable.position.y + ")");
+            List<Point> newPath = null;
+            try {
+                if (snake.algorithm == Snake.PathAlgorithm.ASTAR) {
+                    newPath = Pathfinder.aStar(snake, eatable, allBodies, snake.optimal, MIN_POS, MAX_POS);
+                } else if (snake.algorithm == Snake.PathAlgorithm.BFS) {
+                    newPath = Pathfinder.bfs(snake, eatable, allBodies, snake.optimal, MIN_POS, MAX_POS);
+                } else if (snake.algorithm == Snake.PathAlgorithm.DIJKSTRA) {
+                    newPath = Pathfinder.dijkstra(snake, eatable, allBodies, snake.optimal, MIN_POS, MAX_POS);
+                }
+            } catch (Exception e) {
+                Log.e("AIMove", "Pathfinding error for snake " + snake.color + ": " + e.getMessage(), e);
+                newPath = null;
+            }
+
+            if (newPath != null && !newPath.isEmpty()) {
+                Log.d("AIMove", "Snake " + snake.color + ": New path calculated with " + newPath.size() + " steps.");
+                snake.setCurrentPath(newPath, eatable.position);
+                currentPath = snake.getCurrentPath();
+                Point firstStepOfNewPath = currentPath.get(0);
+
+                if (willCollide(snake, firstStepOfNewPath)) {
+                    Log.w("AIMove", "Snake " + snake.color + ": Immediately calculated path step (" + firstStepOfNewPath.x + "," + firstStepOfNewPath.y + ") is blocked. Clearing path again.");
+                    snake.setCurrentPath(null, null); // Clear path
+                    currentPath = null;
+                } else {
+                    nextStep = firstStepOfNewPath;
+                }
+            } else {
+                Log.w("AIMove", "Snake " + snake.color + ": Pathfinding failed or returned empty path.");
+                snake.setCurrentPath(null, null);
+                currentPath = null;
+            }
+        }
+
+        if (nextStep != null) {
+            if (!willCollide(snake, nextStep)) {
+                snake.setDirectionTowards(nextStep);
                 snake.move();
                 moved = true;
+
+                List<Point> pathInSnake = snake.getCurrentPath();
+                if (pathInSnake != null && !pathInSnake.isEmpty()) {
+                    if (pathInSnake.get(0).equals(nextStep)) {
+                        pathInSnake.remove(0);
+                    } else {
+                        Log.e("AIMove", "Snake " + snake.color + ": Path inconsistency detected before removing step. Clearing path.");
+                        snake.setCurrentPath(null, null);
+                    }
+                }
             } else {
-                Log.w("AIMove", "AI Snake " + snake.color + " path step invalid/collides: (" + nextPosition.x + "," + nextPosition.y + ")");
+                Log.w("AIMove", "Snake " + snake.color + ": Final collision check failed for step (" + nextStep.x + "," + nextStep.y + "). Clearing path.");
+                snake.setCurrentPath(null, null);
             }
         }
 
-        // if path fails check collision on current direction
         if (!moved) {
-            if (snake.direction.x != 0 || snake.direction.y != 0) {
+            Log.d("AIMove", "Snake " + snake.color + ": Entering fallback movement logic.");
+            if (snake.direction != null && (snake.direction.x != 0 || snake.direction.y != 0)) {
                 Point currentDirHead = new Point(snake.getHead().x + snake.direction.x, snake.getHead().y + snake.direction.y);
                 if (!willCollide(snake, currentDirHead)) {
+                    Log.d("AIMove", "Snake " + snake.color + ": Fallback - Moving in current direction.");
                     snake.move();
                     moved = true;
                 }
             }
-        }
 
-        // if path fails and current dir collides, try other 2 options
-        if (!moved) {
-            List<Point> possibleDirs = getPerpendicularDirections(snake.direction);
-            Collections.shuffle(possibleDirs);
-            for (Point dir : possibleDirs) {
-                Point testHead = new Point(snake.getHead().x + dir.x, snake.getHead().y + dir.y);
-                if (!willCollide(snake, testHead)) {
-                    snake.direction = dir;
-                    snake.move();
-                    moved = true;
-                    break;
+            if (!moved) {
+                Log.d("AIMove", "Snake " + snake.color + ": Fallback - Trying perpendicular directions.");
+                List<Point> possibleDirs = getPerpendicularDirections(snake.direction);
+                Collections.shuffle(possibleDirs);
+                for (Point dir : possibleDirs) {
+                    Point testHead = new Point(snake.getHead().x + dir.x, snake.getHead().y + dir.y);
+                    if (!willCollide(snake, testHead)) {
+                        Log.d("AIMove", "Snake " + snake.color + ": Fallback - Moving perpendicularly.");
+                        snake.direction = dir;
+                        snake.move();
+                        moved = true;
+                        break;
+                    }
                 }
             }
         }
-
-        // if fails until here, kill snake
         if (!moved) {
             snakesToRemove.add(snake);
-            Log.w("AIMove", "AI Snake " + snake.color + " could not find any valid move and was removed.");
+            Log.w("AIMove", "AI Snake " + snake.color + " could not find any valid move (including fallbacks) and was removed.");
         }
     }
 
@@ -395,6 +448,7 @@ public class GameView extends View {
         snakes = null;
         eatable = null;
         playerSnake = null;
+        setKeepScreenOn(false);
     }
 
     public void endGameAndCleanup() {
@@ -405,6 +459,7 @@ public class GameView extends View {
             invalidate();
         }
         cleanup();
+        setKeepScreenOn(false);
     }
 
     @Override
@@ -412,6 +467,7 @@ public class GameView extends View {
         super.onDetachedFromWindow();
         Log.d("GameViewLifecycle", "onDetachedFromWindow called. Performing cleanup.");
         cleanup();
+        setKeepScreenOn(false);
     }
 
     @Override

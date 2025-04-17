@@ -1,6 +1,6 @@
 package com.example.algorithmsnake
 import android.app.Activity
-import androidx.activity.compose.BackHandler // Import BackHandler specifically
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -17,6 +17,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.algorithmsnake.ui.theme.AlgorithmSnakeTheme
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 
 //navigation graph
 @Composable
@@ -61,9 +63,9 @@ fun MainMenuScreen(navController: NavHostController) {
     // get gamespeed in milliseconds
     fun getGameSpeedFromSelection(selection: String): Int {
         return when (selection) {
-            "Slugg Fest" -> 90
-            "Deranged" -> 25
-            else -> 55
+            "Slugg Fest" -> 105
+            "Deranged" -> 29
+            else -> 63
         }
     }
     Column(
@@ -74,6 +76,14 @@ fun MainMenuScreen(navController: NavHostController) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        Image(
+            painter = painterResource(id = R.drawable.logo),
+            contentDescription = "Algorithm Snake Logo",
+            modifier = Modifier
+                .fillMaxWidth(0.6f)
+        )
+        Spacer(modifier = Modifier.height(48.dp))
+
         Text("Select Difficulty:", color = Color.White, style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.height(16.dp))
 
